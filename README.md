@@ -42,7 +42,7 @@
    python -m src.discord_bot
 
 ## 📦 Deployment
-Easily deployable on cloud platforms like Railway by configuring the start command to:
+**Easily deployable on cloud platforms like Railway by configuring the start command to:**
     ```bash
     python -m src.discord_bot
 
