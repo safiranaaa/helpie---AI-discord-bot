@@ -1,0 +1,9 @@
+{
+  "$schema": "https://railpack.com/config/schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  ":start": {
+    "command": "python src/discord_bot.py"
+  }
+}
