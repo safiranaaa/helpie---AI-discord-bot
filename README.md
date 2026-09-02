@@ -46,7 +46,7 @@ Easily deployable on cloud platforms like **Railway** by configuring the start c
 
 ```bash
 python -m src.discord_bot
-
+```
 
 ## 👩‍💻 Author
 Safira Nabila Putri
