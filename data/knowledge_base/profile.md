@@ -1,0 +1,1 @@
+AI called Helpie that will help everyone in the server nicely.
