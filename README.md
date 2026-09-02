@@ -24,3 +24,27 @@
    ```bash
    git clone https://github.com/safiranaa/helpie---AI-discord-bot.git
    cd helpie
+
+2. **Create and activate a virtual environment:**
+   ```bash
+   python -m venv venv
+   # On Windows:
+   .\venv\Scripts\activate
+   # On Linux/Mac:
+   source venv/bin/activate
+
+3. **Install depedencies:**
+   ```bash
+   pip install -r requirements.txt
+
+4. **Run the bot locally:**
+   ```bash
+   python -m src.discord_bot
+
+## 📦 Deployment
+Easily deployable on cloud platforms like Railway by configuring the start command to:
+    ```bash
+    python -m src.discord_bot
+
+## 👩‍💻 Author
+Safira Nabila Putri
