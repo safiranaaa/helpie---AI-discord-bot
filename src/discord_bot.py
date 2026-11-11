@@ -8,28 +8,14 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from src.config import GOOGLE_API_KEY, VECTOR_DB_URL, VECTOR_DB_API_KEY, DISCORD_TOKEN
-from src.keep_alive import keep_alive
 
 # Buat folder 'temp' secara otomatis untuk nyimpen PDF sementara
 if not os.path.exists('./temp'):
     os.makedirs('./temp')
 
-# 1. Inisialisasi Otak AI (Sama seperti agent.py)
-print("[*] Membangunkan memori vektor...")
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-vector_store = QdrantVectorStore.from_existing_collection(
-    embedding=embeddings,
-    collection_name="personal_context",
-    url=VECTOR_DB_URL,
-    api_key=VECTOR_DB_API_KEY,
-)
-retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-
 print("[*] Menghubungkan ke Gemini...")
-# <-- INISIALISASI LLM BARU MENGGUNAKAN NATIVE GOOGLE -->
 llm = ChatGoogleGenerativeAI(
     model="gemini-flash-lite-latest", 
     google_api_key=GOOGLE_API_KEY,
@@ -52,15 +38,38 @@ Pertanyaan: {question}
 Jawaban:"""
 prompt = PromptTemplate.from_template(template)
 
+# --- LAZY LOADING & HELPER FUNCTIONS ---
+_embeddings = None
+_vector_store = None
+
+get_embeddings = lambda: HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+def get_vector_store():
+    global _vector_store
+    if _vector_store is None:
+        print("[*] Membangunkan memori vektor...")
+        embeddings = get_embeddings()
+        _vector_store = QdrantVectorStore.from_existing_collection(
+            embedding=embeddings,
+            collection_name="personal_context",
+            url=VECTOR_DB_URL,
+            api_key=VECTOR_DB_API_KEY,
+        )
+    return _vector_store
+
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-qa_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+def invoke_qa_chain(question):
+    v_store = get_vector_store()
+    retriever = v_store.as_retriever(search_kwargs={"k": 5})
+    chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    return chain.invoke(question)
 
 # 2. Inisialisasi Discord Bot
 intents = discord.Intents.default()
@@ -69,11 +78,9 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_message(message):
-    # 1. Mencegah infinite loop (bot ga boleh ngerespons chat-nya sendiri)
     if message.author == bot.user:
         return
 
-    # 2. PENTING: Baris ini wajib ada agar command !pie tetap berfungsi
     await bot.process_commands(message)
 
     # 3. FITUR CONTINUOUS LEARNING (AUTO-MEMORY)
@@ -85,7 +92,8 @@ async def on_message(message):
                     page_content=info_teks, 
                     metadata={"source": "passive_listening", "author": str(message.author.name)}
                 )
-                vector_store.add_documents([doc])
+                v_store = get_vector_store()
+                v_store.add_documents([doc])
                 print(f"[AUTO-MEMORY] Berhasil merekam info dari {message.author.name}")
             except Exception as e:
                 print(f"[ERROR AUTO-MEMORY] Gagal merekam: {e}")
@@ -97,11 +105,12 @@ async def tanya_ai(ctx, *, pertanyaan: str = "Tolong rangkum dan jelaskan isi do
     try:
         dokumen_dinamis = ""
         
-        # 1. CEK APAKAH ADA FILE ATTACHMENT DI PESAN DISCORD
         if ctx.message.attachments:
             for attachment in ctx.message.attachments:
                 if attachment.filename.lower().endswith('.pdf'):
                     await pesan_tunggu.edit(content="```Membaca file PDF yang lu kirim... 📄⏳```")
+                    from langchain_community.document_loaders import PyPDFLoader
+
                     file_path = f"./temp/{attachment.filename}"
                     await attachment.save(file_path)
                     
@@ -110,23 +119,18 @@ async def tanya_ai(ctx, *, pertanyaan: str = "Tolong rangkum dan jelaskan isi do
                     dokumen_dinamis = "\n\n".join(doc.page_content for doc in docs)
                     os.remove(file_path)
         
-       # 2. LOGIKA CABANG (DYNAMIC RAG vs STATIC RAG)
         if dokumen_dinamis:
             chain_dinamis = prompt | llm | StrOutputParser()
-            # Ganti ainvoke dengan asyncio.to_thread + invoke
             jawaban = await asyncio.to_thread(chain_dinamis.invoke, {
                 "context": f"Konteks dari DOKUMEN YANG BARU DIUPLOAD USER:\n{dokumen_dinamis}",
                 "question": pertanyaan
             })
         else:
-            # Ganti ainvoke dengan asyncio.to_thread + invoke
-            jawaban = await asyncio.to_thread(qa_chain.invoke, pertanyaan)
+            jawaban = await asyncio.to_thread(invoke_qa_chain, pertanyaan)
         
-        # Discord punya batas 2000 karakter per pesan
         if len(jawaban) > 1900:
             jawaban = jawaban[:1900] + "\n\n*(Jawaban dipotong karena limit karakter Discord. Kalo butuh lanjutannya, tanya lebih spesifik ya bestie!)*"
             
-        # 3. TAMPILKAN HASILNYA
         await pesan_tunggu.edit(content=jawaban)
         
     except Exception as e:
@@ -146,5 +150,4 @@ async def on_command_error(ctx, error):
         print(f"[LOG ERROR]: {error}")
 
 if __name__ == "__main__":
-    keep_alive()
     bot.run(DISCORD_TOKEN)

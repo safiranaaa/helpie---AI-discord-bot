@@ -3,7 +3,7 @@
   "build": {
     "builder": "NIXPACKS"
   },
-  ":start": {
-    "command": "python src/discord_bot.py"
+  "deploy": {
+    "startCommand": "python -m src.discord_bot"
   }
 }

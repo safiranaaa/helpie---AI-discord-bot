@@ -13,7 +13,7 @@
 
 ## 🛠️ Tech Stack
 - **Language:** Python
-- **Frameworks:** Discord.py, LangChain, Flask
+- **Frameworks:** Discord.py, LangChain
 - **AI & Vector DB:** Google Gemini API, Qdrant Cloud
 
 ---
