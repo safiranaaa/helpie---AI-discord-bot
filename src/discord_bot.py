@@ -2,8 +2,7 @@ import os
 import discord
 import asyncio
 from discord.ext import commands
-from langchain_google_genai import ChatGoogleGenerativeAI 
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -42,7 +41,14 @@ prompt = PromptTemplate.from_template(template)
 _embeddings = None
 _vector_store = None
 
-get_embeddings = lambda: HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+def get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/text-embedding-004",
+            google_api_key=GOOGLE_API_KEY
+        )
+    return _embeddings
 
 def get_vector_store():
     global _vector_store
